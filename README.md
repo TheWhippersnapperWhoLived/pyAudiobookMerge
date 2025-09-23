@@ -30,3 +30,17 @@ Convert MP3 collections in subfolders into well-structured audiobook files with 
 pip install -r requirements.txt
 ```
 Or use the provided standalone EXE — no Python installation needed.
+
+## Usage
+
+Python version:
+
+```bash
+python main.py [root_folder] [-p PRESET]
+```
+- root_folder (optional): Folder containing MP3 subfolders. Defaults to the current directory if not provided.
+- -p PRESET (optional): Preset name from the available presets. If omitted, the script will prompt you to choose.
+
+EXE version:
+- Double-click the .exe file.
+- Follow the interactive prompts to select folder and preset.

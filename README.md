@@ -9,7 +9,7 @@ This tool is still **experimental**. While it might work for some use cases, it 
 
 You are currently limited to the presets provided in the program. You can edit this by adding to the presets.py file.
 
-Only works with .mp3s at the moment. Album art only works when it is specifically a jpeg named as 'album_art.jpg'.
+Only works with .mp3s at the moment..
 
 ## Features
 

@@ -3,6 +3,14 @@ Convert MP3 collections in subfolders into well-structured audiobook files with 
 
 ---
 
+## ⚠️ Experimental Software
+
+This tool is still **experimental**. While it might work for some use cases, it may not handle all MP3 collections or metadata perfectly. Expect bugs, edge cases, and/or occasional FFmpeg errors.
+
+You are currently limited to the presets provided in the program. You can edit this by adding to the presets.py file.
+
+Only works with .mp3s at the moment. Album art only works when it is specifically a jpeg named as 'album_art.jpg'.
+
 ## Features
 
 - Batch converts multiple folders of MP3 files into a single audiobook per folder.

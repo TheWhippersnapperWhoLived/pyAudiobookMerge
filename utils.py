@@ -56,21 +56,24 @@ def find_cover_art(folder):
             if file.lower().endswith(ext):
                 return os.path.join(folder, file)
     return None
-
-def extract_book_title_from_folder(folder_path: str):
+    
+def extract_book_title_from_folder(folder_path: str) -> str:
     """
-    Extracts a clean book title from the folder name.
+    Attempts to extract a clean book title from the folder name.
     Example:
-        "Book 7 - Harry Potter and the Deathly Hallows (2007)"
-        -> "Harry Potter and the Deathly Hallows"
+        "Book 7 - The Winds of Winter (2025)" -> "The Winds of Winter"
+    If the folder does not follow the "Book X - Title (Year)" pattern,
+    the full folder name is returned unchanged.
     """
     folder_name = os.path.basename(os.path.normpath(folder_path))
 
-    # Remove leading "Book X - " if present
-    title = re.sub(r'^Book\s*\d+\s*-\s*', '', folder_name, flags=re.IGNORECASE)
+    # Check if folder matches pattern
+    if re.match(r'^Book\s*\d+\s*-\s*.*\(\d{4}\)$', folder_name, flags=re.IGNORECASE):
+        title = re.sub(r'^Book\s*\d+\s*-\s*', '', folder_name, flags=re.IGNORECASE)
+        title = re.sub(r'\s*\(\d{4}\)$', '', title)
+        return title.strip()
 
-    # Remove trailing year in parentheses
-    title = re.sub(r'\s*\(\d{4}\)$', '', title)
+    # Fallback → just return the folder name
+    return folder_name.strip()
 
-    return title.strip()
 

@@ -21,21 +21,22 @@ def find_cover_art(folder: str) -> str:
 
 def generate_vorbis_picture_tag(image_path: str) -> str:
     """
-    Generate a METADATA_BLOCK_PICTURE VorbisComment for Ogg/Opus embedding.
-    Returns the Base64 string to be added as the value of METADATA_BLOCK_PICTURE.
+    Generate a METADATA_BLOCK_PICTURE VorbisComment for OGG/Opus embedding.
+    Uses the actual image bytes and resolution to ensure proper display.
     """
     try:
         with open(image_path, "rb") as f:
             image_data = f.read()
 
+        with Image.open(image_path) as img:
+            width, height = img.size
+            mode = img.mode
+            depth = 24 if mode in ("RGB", "RGBA") else 8
+            colors = 0
+
         picture_type = 3  # front cover
         mime_type = b"image/jpeg" if image_path.lower().endswith((".jpg", ".jpeg")) else b"image/png"
         description = b"Cover Art"
-
-        with Image.open(image_path) as img:
-            width, height = img.size
-            depth = 24 if img.mode in ("RGB", "RGBA") else 8
-            colors = 0
 
         block = b""
         block += picture_type.to_bytes(4, "big")
@@ -52,7 +53,8 @@ def generate_vorbis_picture_tag(image_path: str) -> str:
     except Exception as e:
         error(f"Failed to generate Vorbis picture tag: {e}")
         return None
-
+    
+    
 def get_cover_art_for_audiobook(folder: str) -> str:
     """
     Main function to get cover art path for embedding.

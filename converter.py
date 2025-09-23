@@ -21,8 +21,8 @@ def convert_to_audiobook(
         return False
 
     temp_list_file = "temp_file_list.txt"
-    metadata_file = None
-    vorbis_picture_file = None
+    metadata_file = "ffmetadata.txt"
+    vorbis_picture_tag = None
 
     # Determine container type
     _, ext = os.path.splitext(output_file)
@@ -31,7 +31,7 @@ def convert_to_audiobook(
     is_opus = ext in [".ogg", ".opus"] or (preset.get("codec") == "libopus")
     is_mp3 = ext == ".mp3"
 
-    # Write MP3 file list
+    # Write MP3 file list for FFmpeg concat
     try:
         with open(temp_list_file, "w", encoding="utf-8") as f:
             for mp3 in mp3_files:
@@ -41,12 +41,33 @@ def convert_to_audiobook(
         error(f"Failed to write temp file list: {e}")
         return False
 
-    # Chapters metadata for FFmpeg
-    if chapters:
-        metadata_file = "ffmetadata.txt"
-        try:
-            with open(metadata_file, "w", encoding="utf-8") as f:
-                f.write(";FFMETADATA1\n")
+    # Cover art
+    cover_art_path = find_cover_art(folder) if folder else None
+    if cover_art_path:
+        info(f"Found cover art: {cover_art_path}")
+        if is_opus:
+            vorbis_picture_tag = generate_vorbis_picture_tag(cover_art_path)
+            if vorbis_picture_tag:
+                info(f"Added Vorbis picture tag to metadata for {cover_art_path}")
+            else:
+                warning("Failed to generate Vorbis picture tag. Cover art will be skipped.")
+
+    # Chapters and metadata
+    try:
+        with open(metadata_file, "w", encoding="utf-8") as f:
+            f.write(";FFMETADATA1\n")
+            # Embed book-level metadata
+            if metadata:
+                for key, value in metadata.items():
+                    if value:
+                        f.write(f"{key}={value}\n")
+
+            # Embed Vorbis picture if OGG/Opus
+            if is_opus and vorbis_picture_tag:
+                f.write(f"METADATA_BLOCK_PICTURE={vorbis_picture_tag}\n")
+
+            # Embed chapters
+            if chapters:
                 start_time = 0.0
                 for chapter in chapters:
                     duration = os.path.getsize(chapter['file']) / (128000 / 8)  # rough estimate
@@ -61,29 +82,14 @@ def convert_to_audiobook(
                         f.write(f"START={int(start_time)}\nEND={int(start_time + duration)}\n")
                         f.write(f"title={chapter['title']}\n")
                     start_time += duration
-        except Exception as e:
-            warning(f"Failed to create chapter metadata: {e}")
-            metadata_file = None
-
-    # Cover art
-    cover_art_path = find_cover_art(folder) if folder else None
-    if cover_art_path:
-        info(f"Found cover art: {cover_art_path}")
-    if is_opus and cover_art_path:
-        # For OGG/Opus, generate a temporary Vorbis picture file
-        try:
-            b64_tag = generate_vorbis_picture_tag(cover_art_path)
-            vorbis_picture_file = "vorbis_picture.txt"
-            with open(vorbis_picture_file, "w", encoding="utf-8") as f:
-                f.write(f"METADATA_BLOCK_PICTURE={b64_tag}\n")
-        except Exception as e:
-            warning(f"Failed to generate Vorbis picture: {e}")
-            vorbis_picture_file = None
+    except Exception as e:
+        warning(f"Failed to create metadata file: {e}")
+        metadata_file = None
 
     # Build FFmpeg command
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", temp_list_file]
 
-    input_idx = 1  # next input index
+    input_idx = 1  # tracks next input index
 
     if metadata_file:
         cmd.extend(["-i", metadata_file])
@@ -92,25 +98,11 @@ def convert_to_audiobook(
     else:
         metadata_input_idx = None
 
-    if is_mp3 or is_m4b:
-        if cover_art_path:
-            cmd.extend(["-i", cover_art_path])
-            cover_art_idx = input_idx
-            input_idx += 1
-        else:
-            cover_art_idx = None
-    elif is_opus:
-        if vorbis_picture_file:
-            cmd.extend(["-i", vorbis_picture_file])
-            metadata_input_idx = input_idx  # Vorbis picture counts as metadata
-            input_idx += 1
-
-    # Stream mapping
-    cmd.extend(["-map", "0:a"])  # audio
+    cover_art_idx = None
     if cover_art_path and (is_mp3 or is_m4b):
-        cmd.extend(["-map", f"{cover_art_idx}:v"])
-    if metadata_input_idx is not None:
-        cmd.extend(["-map_metadata", str(metadata_input_idx)])
+        cmd.extend(["-i", cover_art_path])
+        cover_art_idx = input_idx
+        input_idx += 1
 
     # Audio codec
     if preset.get("codec") != "copy":
@@ -122,17 +114,17 @@ def convert_to_audiobook(
     else:
         cmd.extend(["-c:a", "copy"])
 
-    # Cover art for MP3/M4B
-    if cover_art_path and (is_mp3 or is_m4b):
+    # Map audio
+    cmd.extend(["-map", "0:a"])
+
+    # Map metadata and cover
+    if metadata_input_idx is not None:
+        cmd.extend(["-map_metadata", str(metadata_input_idx)])
+    if cover_art_idx is not None:
+        cmd.extend(["-map", f"{cover_art_idx}:v"])
         cmd.extend(["-c:v", "mjpeg", "-disposition:v", "attached_pic"])
         if is_mp3:
             cmd.extend(["-id3v2_version", "3"])
-
-    # Metadata tags
-    if metadata:
-        for key, value in metadata.items():
-            if value:
-                cmd.extend(["-metadata", f"{key}={value}"])
 
     # Output
     cmd.append(output_file)
@@ -147,7 +139,7 @@ def convert_to_audiobook(
         return False
     finally:
         # Cleanup
-        for f in [temp_list_file, metadata_file, vorbis_picture_file]:
+        for f in [temp_list_file, metadata_file]:
             if f and os.path.exists(f):
                 os.remove(f)
                 info(f"Removed temporary file: {f}")

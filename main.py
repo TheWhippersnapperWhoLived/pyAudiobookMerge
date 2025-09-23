@@ -1,10 +1,14 @@
 import os
 import glob
 import argparse
+
 from presets import get_preset_by_name, list_presets
-from utils import get_mp3_files, extract_metadata, detect_chapters, find_cover_art
+from file_discovery import get_mp3_files, find_subfolders
+from chapter_handler import detect_chapters
+from metadata_manager import extract_metadata_from_mp3s as extract_metadata
+from cover_art import get_cover_art_for_audiobook
 from converter import convert_to_audiobook
-from logger import info, warning, error
+from logger import info, warning
 
 # -------------------------------
 # Helper functions
@@ -59,15 +63,9 @@ def process_all_folders(root_dir, preset_name):
         preset_name = prompt_for_preset()
         preset = get_preset_by_name(preset_name)
 
-    # Find all subfolders
-    subfolders = [
-        os.path.join(root_dir, f) 
-        for f in os.listdir(root_dir)
-        if os.path.isdir(os.path.join(root_dir, f))
-    ]
-
+    subfolders = find_subfolders(root_dir)
     if not subfolders:
-        warning("No subfolders found. Exiting.")
+        warning("No MP3 subfolders found. Exiting.")
         return
 
     for folder in subfolders:
@@ -81,34 +79,31 @@ def process_all_folders(root_dir, preset_name):
         chapters = detect_chapters(mp3_files)
         info(f"Detected {len(chapters)} chapters.")
 
-        metadata = extract_metadata(mp3_files[0])
+        metadata = extract_metadata(mp3_files)
         metadata["title"] = os.path.basename(os.path.normpath(folder))  # Keep full folder name
 
-        cover_art = find_cover_art(folder)
+        cover_art = get_cover_art_for_audiobook(folder)  # always full-res
         if cover_art:
             info(f"Found cover art: {cover_art}")
 
         # Determine output file
         book_title = metadata["title"]
         if preset.get("codec") == "libopus":
-            output_file = os.path.join(root_dir, f"{book_title}.opus")
+            output_file = os.path.join(root_dir, f"{book_title}.ogg")
+        elif preset.get("codec") == "copy":
+            input_ext = os.path.splitext(mp3_files[0])[1].lower()
+            output_file = os.path.join(root_dir, f"{book_title}{input_ext}")
         else:
             output_file = os.path.join(root_dir, f"{book_title}.m4b")
 
-        # Adjust container if using Copy preset
-        if preset.get("codec") == "copy":
-            input_ext = os.path.splitext(mp3_files[0])[1].lower()
-            output_file = os.path.splitext(output_file)[0] + input_ext
-            info(f"Copy preset selected, keeping container as {input_ext}")
-
-        # Convert
+        # pass cover_art to converter
         success = convert_to_audiobook(
             mp3_files=mp3_files,
             output_file=output_file,
             preset=preset,
             metadata=metadata,
-            cover_art=cover_art,
-            chapters=chapters
+            chapters=chapters,
+            folder=folder   # 
         )
 
         # Clean up temp files
@@ -126,26 +121,15 @@ def process_all_folders(root_dir, preset_name):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(
-        description="Batch convert MP3 folders into audiobooks."
-    )
-    parser.add_argument(
-        "root_dir",
-        nargs='?',
-        help="Root folder containing MP3 subfolders"
-    )
-    parser.add_argument(
-        "-p", "--preset",
-        help="Preset name"
-    )
+    parser = argparse.ArgumentParser(description="Batch convert MP3 folders into audiobooks.")
+    parser.add_argument("root_dir", nargs='?', help="Root folder containing MP3 subfolders")
+    parser.add_argument("-p", "--preset", help="Preset name")
     args = parser.parse_args()
 
     # --- Root folder handling ---
     if not args.root_dir:
         default_dir = os.getcwd()
-        args.root_dir = input(
-            f"Enter root folder containing MP3 subfolders [default: {default_dir}]: "
-        ).strip()
+        args.root_dir = input(f"Enter root folder containing MP3 subfolders [default: {default_dir}]: ").strip()
         if not args.root_dir:
             args.root_dir = default_dir
             info(f"No folder entered, using current directory: {args.root_dir}")

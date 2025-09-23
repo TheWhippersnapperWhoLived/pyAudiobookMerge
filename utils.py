@@ -4,6 +4,7 @@ import re
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 from logger import info, warning
+from typing import List, Dict, Tuple
 
 def get_mp3_files(folder: str):
     """Return a sorted list of all MP3 files in a folder."""
@@ -35,18 +36,29 @@ def extract_metadata(mp3_file: str):
             "year": "Unknown"
         }
 
-def detect_chapters(mp3_files):
+def natural_sort_key(s: str):
     """
-    Detect chapters based on filenames.
-    Returns a list of dicts: [{'title': 'Chapter Name', 'file': 'path'}, ...]
+    Splits the string into text and numbers for natural sorting.
+    Example: "11 - Chapter" comes after "2 - Chapter".
     """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+def detect_chapters(mp3_files: list) -> list:
+    """
+    Detect chapters from a list of audio files.
+    Returns [{'title': ..., 'file': ...}, ...]
+    """
+    if not mp3_files:
+        return []
+
+    # Natural sort
+    mp3_files.sort(key=lambda f: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', os.path.basename(f))])
+
     chapters = []
-    for mp3 in mp3_files:
-        # Remove leading numbers and dashes for a clean title
-        base = os.path.basename(mp3)
-        title = os.path.splitext(base)[0]
-        title = title.lstrip("0123456789.-_ ").strip()
-        chapters.append({"title": title, "file": mp3})
+    for f in mp3_files:
+        title = os.path.splitext(os.path.basename(f))[0].lstrip("0123456789.-_ ").strip()
+        chapters.append({"title": title or os.path.splitext(os.path.basename(f))[0], "file": f})
+
     return chapters
 
 def find_cover_art(folder):
@@ -56,7 +68,7 @@ def find_cover_art(folder):
             if file.lower().endswith(ext):
                 return os.path.join(folder, file)
     return None
-    
+
 def extract_book_title_from_folder(folder_path: str) -> str:
     """
     Attempts to extract a clean book title from the folder name.
@@ -75,5 +87,4 @@ def extract_book_title_from_folder(folder_path: str) -> str:
 
     # Fallback → just return the folder name
     return folder_name.strip()
-
 

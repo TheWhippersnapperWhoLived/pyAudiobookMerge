@@ -3,6 +3,8 @@ import os
 import subprocess
 from logger import info, warning, error
 from cover_art import find_cover_art, generate_vorbis_picture_tag
+from mutagen import File
+from mutagen.mp3 import MP3
 
 def convert_to_audiobook(
     mp3_files: list,
@@ -53,38 +55,59 @@ def convert_to_audiobook(
                 warning("Failed to generate Vorbis picture tag. Cover art will be skipped.")
 
     # Chapters and metadata
-    try:
-        with open(metadata_file, "w", encoding="utf-8") as f:
-            f.write(";FFMETADATA1\n")
-            # Embed book-level metadata
-            if metadata:
-                for key, value in metadata.items():
-                    if value:
-                        f.write(f"{key}={value}\n")
+    # Embed chapters
+    if chapters:
+        metadata_file = "ffmetadata.txt" if is_opus else None
+        try:
 
-            # Embed Vorbis picture if OGG/Opus
-            if is_opus and vorbis_picture_tag:
-                f.write(f"METADATA_BLOCK_PICTURE={vorbis_picture_tag}\n")
+            start_time = 0.0
 
-            # Embed chapters
-            if chapters:
-                start_time = 0.0
-                for chapter in chapters:
-                    duration = os.path.getsize(chapter['file']) / (128000 / 8)  # rough estimate
-                    if is_opus:
+            if is_opus:
+                # Write ffmetadata.txt for OGG/Opus
+                with open(metadata_file, "w", encoding="utf-8") as f:
+                    f.write(";FFMETADATA1\n")
+
+                    for idx, chapter in enumerate(chapters, start=1):
+                        audio = MP3(chapter['file'])
+                        duration = audio.info.length
+
+                        info(f"Chapter {idx}: '{chapter['title']}' -> duration: {duration:.2f}s, start_time: {start_time:.2f}s")
+
                         start_ms = int(start_time * 1000)
                         end_ms = int((start_time + duration) * 1000)
+
                         f.write("[CHAPTER]\nTIMEBASE=1/1000\n")
                         f.write(f"START={start_ms}\nEND={end_ms}\n")
                         f.write(f"title={chapter['title']}\n")
-                    else:
+
+                        info(f"Written OGG chapter: START={start_ms}ms END={end_ms}ms")
+                        start_time += duration
+
+            else:
+                # MP3: still write ffmetadata-style chapters for FFmpeg (optional)
+                metadata_file = "ffmetadata.txt"
+                with open(metadata_file, "w", encoding="utf-8") as f:
+                    f.write(";FFMETADATA1\n")
+
+                    for idx, chapter in enumerate(chapters, start=1):
+                        audio = MP3(chapter['file'])
+                        duration = audio.info.length
+
+                        info(f"Chapter {idx}: '{chapter['title']}' -> duration: {duration:.2f}s, start_time: {start_time:.2f}s")
+
+                        start_sec = int(start_time)
+                        end_sec = int(start_time + duration)
+
                         f.write("[CHAPTER]\nTIMEBASE=1/1\n")
-                        f.write(f"START={int(start_time)}\nEND={int(start_time + duration)}\n")
+                        f.write(f"START={start_sec}\nEND={end_sec}\n")
                         f.write(f"title={chapter['title']}\n")
-                    start_time += duration
-    except Exception as e:
-        warning(f"Failed to create metadata file: {e}")
-        metadata_file = None
+
+                        info(f"Written MP3 chapter: START={start_sec}s END={end_sec}s")
+                        start_time += duration
+
+        except Exception as e:
+            error(f"Failed to create chapter metadata: {e}")
+            metadata_file = None
 
     # Build FFmpeg command
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", temp_list_file]

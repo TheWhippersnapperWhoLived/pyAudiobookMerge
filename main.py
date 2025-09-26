@@ -114,6 +114,7 @@ def process_all_folders(root_dir, preset_name):
         else:
             info(f"Successfully created audiobook: {output_file}\n")
 
+# need to fix metadata attachment to ogg files. 
 
 # -------------------------------
 # Main execution

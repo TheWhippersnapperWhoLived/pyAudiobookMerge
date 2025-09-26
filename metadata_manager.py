@@ -3,6 +3,7 @@ from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 from logger import info, warning
 from typing import Dict, Optional
+import os
 
 DEFAULT_METADATA: Dict[str, Optional[str]] = {
     "title": None,

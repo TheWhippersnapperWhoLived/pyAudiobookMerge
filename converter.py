@@ -54,47 +54,46 @@ def convert_to_audiobook(
             else:
                 warning("Failed to generate Vorbis picture tag. Cover art will be skipped.")
 
-    # Chapters and metadata
-    # Embed chapters
+        # Chapters and metadata
     if chapters:
-        metadata_file = "ffmetadata.txt" if is_opus else None
+        metadata_file = "ffmetadata.txt"
         try:
+            with open(metadata_file, "w", encoding="utf-8") as f:
+                # Always start with FFmetadata header
+                f.write(";FFMETADATA1\n")
 
-            start_time = 0.0
+                if metadata.get("title"):
+                    f.write(f"title={metadata['title']}\n")
+                if metadata.get("author"):
+                    f.write(f"artist={metadata['author']}\n")  # AAC players use 'artist'
+                if metadata.get("album"):
+                    f.write(f"album={metadata['album']}\n")
+                if metadata.get("genre"):
+                    f.write(f"genre={metadata['genre']}\n")
+                if metadata.get("year"):
+                    f.write(f"date={metadata['year']}\n")
+                if metadata.get("comment"):
+                    f.write(f"comment={metadata['comment']}\n")
 
-            if is_opus:
-                # Write ffmetadata.txt for OGG/Opus
-                with open(metadata_file, "w", encoding="utf-8") as f:
-                    f.write(";FFMETADATA1\n")
+                # For OGG/Opus: put the Vorbis picture tag *first*
+                if is_opus and vorbis_picture_tag:
+                    f.write(f"METADATA_BLOCK_PICTURE={vorbis_picture_tag}\n")
 
-                    for idx, chapter in enumerate(chapters, start=1):
-                        audio = MP3(chapter['file'])
-                        duration = audio.info.length
+                start_time = 0.0
+                for idx, chapter in enumerate(chapters, start=1):
+                    audio = MP3(chapter['file'])
+                    duration = audio.info.length
 
-                        info(f"Chapter {idx}: '{chapter['title']}' -> duration: {duration:.2f}s, start_time: {start_time:.2f}s")
-
+                    if is_opus:
+                        # ms precision
                         start_ms = int(start_time * 1000)
                         end_ms = int((start_time + duration) * 1000)
 
                         f.write("[CHAPTER]\nTIMEBASE=1/1000\n")
                         f.write(f"START={start_ms}\nEND={end_ms}\n")
                         f.write(f"title={chapter['title']}\n")
-
-                        info(f"Written OGG chapter: START={start_ms}ms END={end_ms}ms")
-                        start_time += duration
-
-            else:
-                # MP3: still write ffmetadata-style chapters for FFmpeg (optional)
-                metadata_file = "ffmetadata.txt"
-                with open(metadata_file, "w", encoding="utf-8") as f:
-                    f.write(";FFMETADATA1\n")
-
-                    for idx, chapter in enumerate(chapters, start=1):
-                        audio = MP3(chapter['file'])
-                        duration = audio.info.length
-
-                        info(f"Chapter {idx}: '{chapter['title']}' -> duration: {duration:.2f}s, start_time: {start_time:.2f}s")
-
+                    else:
+                        # whole seconds
                         start_sec = int(start_time)
                         end_sec = int(start_time + duration)
 
@@ -102,12 +101,12 @@ def convert_to_audiobook(
                         f.write(f"START={start_sec}\nEND={end_sec}\n")
                         f.write(f"title={chapter['title']}\n")
 
-                        info(f"Written MP3 chapter: START={start_sec}s END={end_sec}s")
-                        start_time += duration
+                    start_time += duration
 
         except Exception as e:
             error(f"Failed to create chapter metadata: {e}")
             metadata_file = None
+
 
     # Build FFmpeg command
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", temp_list_file]
@@ -141,13 +140,29 @@ def convert_to_audiobook(
     cmd.extend(["-map", "0:a"])
 
     # Map metadata and cover
-    if metadata_input_idx is not None:
-        cmd.extend(["-map_metadata", str(metadata_input_idx)])
+    if metadata_input_idx is not None and not is_opus:
+        # Add metadata
+        if metadata.get("title"):
+            cmd.extend(["-metadata", f"title={metadata['title']}"])
+        if metadata.get("author"):
+            cmd.extend(["-metadata", f"artist={metadata['author']}"])  # AAC players use 'artist'
+        if metadata.get("album"):
+            cmd.extend(["-metadata", f"album={metadata['album']}"])
+        if metadata.get("genre"):
+            cmd.extend(["-metadata", f"genre={metadata['genre']}"])
+        if metadata.get("year"):
+            cmd.extend(["-metadata", f"date={metadata['year']}"])
+        if metadata.get("comment"):
+            cmd.extend(["-metadata", f"comment={metadata['comment']}"])
+    else:
+        cmd.extend(['-map_metadata', '1'])
+
     if cover_art_idx is not None:
         cmd.extend(["-map", f"{cover_art_idx}:v"])
         cmd.extend(["-c:v", "mjpeg", "-disposition:v", "attached_pic"])
         if is_mp3:
             cmd.extend(["-id3v2_version", "3"])
+    
 
     # Output
     cmd.append(output_file)

@@ -1,15 +1,21 @@
 # pyAudiobookMerge
-Convert MP3 collections in subfolders into well-structured audiobook files with chapters, metadata, and cover art.
+Convert separated chapter MP3s in subfolders into well-structured audiobook files with chapters, metadata, and cover art.
 
 ---
 
-## ⚠️ Experimental Software
+## Disclaimers
 
-This tool is still **experimental**. While it might work for some use cases, it may not handle all MP3 collections or metadata perfectly. Expect bugs, edge cases, and/or occasional FFmpeg errors.
+This tool is still **experimental**. While it might work for some use cases, it may not handle all MP3 collections or metadata perfectly. Sometimes bugs, edge cases, and/or occasional FFmpeg errors may occur.
 
-You are currently limited to the presets provided in the program. You can edit this by adding to the presets.py file.
+You are currently limited to the presets provided in the program.
 
 Only works with .mp3s at the moment.
+
+AAC presets are quite slow compared to the other options as the encoder FFMPEG uses is singlethreaded.
+
+Generally reccommend:
+- Copy/Remux for speed and to preserve the files original audio quality
+- Opus for much lower file sizes with a (generally) minimal change in quality, especially compared to AAC.
 
 ## Features
 
@@ -20,11 +26,11 @@ Only works with .mp3s at the moment.
   - **AAC 64kbps Mono (Low Bandwidth, Voice)**
   - **AAC 128kbps Stereo (Standard Listening)**
   - **Opus 128kbps Stereo (High Quality, Stereo)**
-- Automatically detects chapters from MP3 filenames.
+- Automatically creates chapters from MP3 filenames.
 - The program uses the folder name as the audiobook title.
-- Extracts metadata from MP3 files and applies it to the final audiobook.
-- Embeds cover art (jpg/png) with automatic resizing.
-- Works as both Python script and standalone EXE.
+- Extracts metadata from the first MP3 file in a subfolder and applies it to the final audiobook.
+- Embeds cover art (jpg/png) provided there is an image file in the subfolder.
+- Works as both Python script and standalone EXE (compiled with auto-py-to-exe)
 
 ---
 

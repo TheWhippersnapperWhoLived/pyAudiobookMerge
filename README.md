@@ -17,6 +17,9 @@ Generally reccommend:
 - Copy/Remux for speed and to preserve the files original audio quality
 - Opus for much lower file sizes with a (generally) minimal change in quality, especially compared to AAC.
 
+## Demo
+![Use](./explorer_2p75GmGp2b.gif)
+
 ## Features
 
 - Batch converts multiple folders of MP3 files into a single audiobook per folder.
